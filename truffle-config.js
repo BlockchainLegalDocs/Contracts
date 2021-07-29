@@ -42,9 +42,9 @@ module.exports = {
     // options below to some value.
     //
     development: {
-      host: "127.0.0.1",
+      host: '127.0.0.1',
       port: 7545,
-      network_id: "*"
+      network_id: '*',
     },
     // Another network with more advanced options...
     // advanced: {
@@ -81,7 +81,7 @@ module.exports = {
   // Configure your compilers
   compilers: {
     solc: {
-      version: "0.8.6",    // Fetch exact version from solc-bin (default: truffle's version)
+      version: '0.8.6', // Fetch exact version from solc-bin (default: truffle's version)
       // docker: true,        // Use "0.5.1" you've installed locally with docker (default: false)
       // settings: {          // See the solidity docs for advice about optimization and evmVersion
       //  optimizer: {
@@ -90,7 +90,7 @@ module.exports = {
       //  },
       //  evmVersion: "byzantium"
       // }
-    }
+    },
   },
 
   // Truffle DB is currently disabled by default; to enable it, change enabled: false to enabled: true
@@ -100,6 +100,6 @@ module.exports = {
   // $ truffle migrate --reset --compile-all
 
   db: {
-    enabled: false
-  }
+    enabled: false,
+  },
 };

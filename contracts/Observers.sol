@@ -17,8 +17,8 @@ contract Observers {
         bool isFired;
     }
     
-    address immutable private owner;
-    address private documentContractAddr;
+    address immutable public owner;
+    address public documentContractAddr;
     mapping (address => Observer) public observersList;
     address[] public observersAddrList;
     
@@ -49,7 +49,7 @@ contract Observers {
         documentContractAddr = newDocContractAddr;
     }
     
-    function signup () external payable {
+    function signup() external payable {
         if(msg.value < 1) revert InsufficientValue();
         if(observersList[msg.sender].exists) revert AlreadySignedUp();
         
