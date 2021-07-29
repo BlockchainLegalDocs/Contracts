@@ -16,8 +16,20 @@ error NotEnoughLinkForGas();
 error VotingEndTimeNotArrived();
 error VotingStarted();
 
+struct Observer {
+    uint amount;
+    uint lastVote;
+    bool hasVerified;
+    bool hasSettled;
+    bool exists;
+    bool isFired;
+}
+
 interface ObserverContract {
-    function observersAddrList() external view returns (address[] memory);
+    function getObserversAddrList() external view returns (address[] memory);
+    function observersList(address)  external view returns (Observer memory);
+    function increaseObserverAmount(uint amount, address observer) external;
+    function changeLastVote(uint time, address observer) external;
 }
 
 contract Documents is VRFConsumerBase {
@@ -41,7 +53,7 @@ contract Documents is VRFConsumerBase {
     struct VotingProps {
         bool hasRequestedForVoting;
         uint endVotingTime;
-        int votingResult;
+        int8 votingResult;
         uint voteCount;
     }
     
@@ -63,11 +75,16 @@ contract Documents is VRFConsumerBase {
     
     mapping (string => Document) public documentList;
     mapping (string => mapping(address => ObserverResult)) public observers;
+    mapping (string => address[]) public observerAddresses;
     mapping (string => VotingProps) public votingProps;
     
     address immutable private owner;
     address constant private observerContractAddr = 0xd9145CCE52D386f254917e481eB44e9943F39138;
+
     uint8 constant private votersCount = 5;
+    uint8 constant private votersFeePercent = 1;
+    uint8 constant private votersMaxCashFeePercent = 20;
+
     bytes32 constant private sKeyHash = 0x2ed0feb3e7fd2022120aa84fab1945545a9f2ffc9076fd6156fa96eaff4c1311;
     uint256 constant private sFee = 100000000000000000;
     mapping(bytes32 => string) private sRollersDocs;
@@ -182,9 +199,18 @@ contract Documents is VRFConsumerBase {
         if(!observers[docLink][msg.sender].exists) revert ObserverNotFound();
         if(!observers[docLink][msg.sender].hasVoted) revert ObserverAlreadyVoted();
         
+        ObserverContract(observerContractAddr).changeLastVote(block.timestamp, msg.sender);
+        
         observers[docLink][msg.sender].vote = voteValue;
         observers[docLink][msg.sender].hasVoted = true;
         votingProps[docLink].voteCount += 1;
+        
+        if(voteValue == ObserverVote.Employee) {
+            votingProps[docLink].votingResult -= 1;
+        } else {
+            votingProps[docLink].votingResult += 1;
+        }
+        
         
         if(votingProps[docLink].voteCount == votersCount) {
             finishVoting(docLink);
@@ -198,12 +224,31 @@ contract Documents is VRFConsumerBase {
     }
     
     function finishVoting(string calldata docLink) private {
+        distributeVotersFee(docLink);
+        
+        documentList[docLink].employeeAmount -= documentList[docLink].employeeAmount * votersFeePercent / 100;
+        documentList[docLink].employerAmount -= documentList[docLink].employerAmount * votersFeePercent / 100;
+        
         if(votingProps[docLink].votingResult < 0) {
             withraw(WithrawType.Employee, docLink);
         } else if(votingProps[docLink].votingResult > 0) {
             withraw(WithrawType.Employer, docLink);
         } else {
             withraw(WithrawType.Even, docLink);
+        }
+    }
+    
+    function distributeVotersFee(string calldata docLink) private {
+        uint eachVotersFeeAmount = (documentList[docLink].employerAmount + documentList[docLink].employeeAmount) * votersFeePercent / 100 / votersCount;
+        for(uint i =0;i<observerAddresses[docLink].length;i++){
+            address currentObserverAddress = observerAddresses[docLink][i];
+            uint currentVoterAmount = ObserverContract(observerContractAddr).observersList(currentObserverAddress).amount;
+            
+            if(eachVotersFeeAmount < currentVoterAmount * votersMaxCashFeePercent / 100) {
+                payable(currentObserverAddress).transfer(eachVotersFeeAmount);
+            } else {
+                payable(currentObserverAddress).transfer(currentVoterAmount * votersMaxCashFeePercent / 100);
+            }
         }
     }
     
@@ -217,8 +262,8 @@ contract Documents is VRFConsumerBase {
     }
     
     function fulfillRandomness(bytes32 requestId, uint256 randomness) internal override {
-        address[] memory observersList = ObserverContract(observerContractAddr).observersAddrList();
-        uint observersCount = ObserverContract(observerContractAddr).observersAddrList().length;
+        address[] memory observersList = ObserverContract(observerContractAddr).getObserversAddrList();
+        uint observersCount = observersList.length;
 
         for (uint256 i = 0; i < votersCount; i++) {
             uint randomNumber = uint256(keccak256(abi.encode(randomness, i)));
@@ -227,6 +272,7 @@ contract Documents is VRFConsumerBase {
             string memory docLink = sRollersDocs[requestId];
             address randomObserverAddress = observersList[randomNormalizedNumber];
             observers[docLink][randomObserverAddress].exists = true;
+            observerAddresses[docLink].push(randomObserverAddress);
         }
     }
 }
