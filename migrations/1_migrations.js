@@ -1,6 +1,6 @@
-const Documents = artifacts.require('Documents');
+const Migrations = artifacts.require('Migrations');
 
 module.exports = function(_deployer) {
   // Use deployer to state migration tasks.
-  _deployer.deploy(Documents);
+  _deployer.deploy(Migrations);
 };

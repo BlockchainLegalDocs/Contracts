@@ -79,7 +79,7 @@ contract Documents is VRFConsumerBase {
     mapping (string => VotingProps) public votingProps;
     
     address immutable private owner;
-    address constant private observerContractAddr = 0xd9145CCE52D386f254917e481eB44e9943F39138;
+    address immutable private observerContractAddr;
 
     uint8 constant private votersCount = 5;
     uint8 constant private votersFeePercent = 1;
@@ -105,11 +105,12 @@ contract Documents is VRFConsumerBase {
         _;
     }
     
-    constructor() VRFConsumerBase(
+    constructor(address newObserverContractAddr) VRFConsumerBase(
         0xb3dCcb4Cf7a26f6cf6B120Cf5A73875B7BBc655B,
         0x01BE23585060835E02B77ef475b0Cc51aA1e0709
     ) {
         owner = msg.sender;
+        observerContractAddr = newObserverContractAddr;
     }
     
     // Getters
