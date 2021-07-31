@@ -80,7 +80,7 @@ contract('Observers', (accounts) => {
   });
 
   describe('verify', () => {
-    it('should throw error if callee is not owner', async () => {
+    it('should throw error if caller is not owner', async () => {
       await contractInstance.signup({
         from: accounts[2],
         value: ONE_ETHER,
@@ -89,7 +89,7 @@ contract('Observers', (accounts) => {
         from: accounts[1],
       }));
     });
-    it('should not throw error if callee is not owner', async () => {
+    it('should not throw error if caller is not owner', async () => {
       await contractInstance.signup({
         from: accounts[1],
         value: ONE_ETHER,
@@ -122,7 +122,7 @@ contract('Observers', (accounts) => {
   });
 
   describe('changeLastVote', () => {
-    it('should reject if callee is not the document contract', async () => {
+    it('should reject if caller is not the document contract', async () => {
       const DOC_CONTRACT_ADDRESS = accounts[1];
 
       await contractInstance.setDocumentContractAddress(DOC_CONTRACT_ADDRESS);
@@ -180,7 +180,7 @@ contract('Observers', (accounts) => {
   });
 
   describe('increaseObserverAmount', () => {
-    it('should reject if callee is not the document contract', async () => {
+    it('should reject if caller is not the document contract', async () => {
       const DOC_CONTRACT_ADDRESS = accounts[1];
 
       await contractInstance.setDocumentContractAddress(DOC_CONTRACT_ADDRESS);
@@ -222,7 +222,7 @@ contract('Observers', (accounts) => {
   });
 
   describe('settle', () => {
-    it('should throw error if callee hasn\'t signed up', async () => assert.isRejected(contractInstance.settle({
+    it('should throw error if caller hasn\'t signed up', async () => assert.isRejected(contractInstance.settle({
       from: accounts[1],
     })));
 
@@ -286,7 +286,7 @@ contract('Observers', (accounts) => {
       }));
     });
 
-    it('should transfer amount to the callee on success', async () => {
+    it('should transfer amount to the caller on success', async () => {
       const VOTER = accounts[1];
       const CONTRACT_ADDRESS = accounts[2];
       const VALUE = ONE_ETHER;
@@ -327,7 +327,7 @@ contract('Observers', (accounts) => {
       );
     });
 
-    it('should set status of the callee to hasSettled on success', async () => {
+    it('should set status of the caller to hasSettled on success', async () => {
       const VOTER = accounts[1];
       const CONTRACT_ADDRESS = accounts[2];
       const VALUE = ONE_ETHER;
@@ -361,7 +361,7 @@ contract('Observers', (accounts) => {
       assert.isTrue(observer.hasSettled);
     });
 
-    it('should remove callee address from observers on success', async () => {
+    it('should remove caller address from observers on success', async () => {
       const VOTER = accounts[1];
       const CONTRACT_ADDRESS = accounts[2];
       const VALUE = ONE_ETHER;
@@ -397,15 +397,15 @@ contract('Observers', (accounts) => {
   });
 
   describe('fireObserver', () => {
-    it('should throw error if callee is not the owner', async () => assert.isRejected(contractInstance.fireObserver({
+    it('should throw error if caller is not the owner', async () => assert.isRejected(contractInstance.fireObserver({
       from: accounts[1],
     })));
 
-    it('should throw error if callee hasn\'t signed up', async () => assert.isRejected(contractInstance.fireObserver(accounts[1], {
+    it('should throw error if caller hasn\'t signed up', async () => assert.isRejected(contractInstance.fireObserver(accounts[1], {
       from: ownerAccountAddress,
     })));
 
-    it('should throw error if the callee has not been verified', async () => {
+    it('should throw error if the caller has not been verified', async () => {
       const TARGET = accounts[1];
 
       await contractInstance.signup({
@@ -417,7 +417,7 @@ contract('Observers', (accounts) => {
       }));
     });
 
-    it('should set isFired of the callee to true', async () => {
+    it('should set isFired of the caller to true', async () => {
       const TARGET = accounts[1];
       const DOC_CONTRACT_ADDRESS = accounts[2];
 
@@ -459,7 +459,7 @@ contract('Observers', (accounts) => {
       assert.equal(observer.amount, 0);
     });
 
-    it('should remove the callee from observer address list', async () => {
+    it('should remove the caller from observer address list', async () => {
       const TARGET = accounts[1];
       const DOC_CONTRACT_ADDRESS = accounts[2];
 

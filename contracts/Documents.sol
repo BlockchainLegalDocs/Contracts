@@ -33,10 +33,10 @@ interface ObserverContract {
 }
 
 contract Documents is VRFConsumerBase {
-    enum WithrawType {
+    enum WithdrawType {
         Employee,
         Employer,
-        Even
+        Revert
     }
     
     enum ObserverVote {
@@ -67,7 +67,7 @@ contract Documents is VRFConsumerBase {
         bool exists;
         
         bool hasSettled;
-        WithrawType withrawType;
+        WithdrawType withdrawType;
         
         bool hasEmployerCanceled;
         bool hasEmployeeCanceled;
@@ -78,7 +78,7 @@ contract Documents is VRFConsumerBase {
     mapping (string => address[]) public observerAddresses;
     mapping (string => VotingProps) public votingProps;
     
-    address immutable private owner;
+    address immutable public owner;
     address immutable private observerContractAddr;
 
     uint8 constant private votersCount = 5;
@@ -135,7 +135,7 @@ contract Documents is VRFConsumerBase {
         documentList[docLink].endTime = endTime;
     }
     
-    function eployeeSign(string calldata docLink) external payable requiredDoc(docLink) {
+    function employeeSign(string calldata docLink) external payable requiredDoc(docLink) {
         if(msg.value < documentList[docLink].employeeAmount) revert InsufficientValue();
         
         documentList[docLink].employee = msg.sender;
@@ -143,12 +143,12 @@ contract Documents is VRFConsumerBase {
     
     // Withraw Functions
     
-    function withraw(WithrawType withrawType, string calldata docLink) private {
+    function withdraw(WithdrawType withdrawType, string calldata docLink) private {
         if(documentList[docLink].hasSettled) revert AlreadySettled();
         
-        if(withrawType == WithrawType.Employee) {
+        if(withdrawType == WithdrawType.Employee) {
             payable(documentList[docLink].employee).transfer(documentList[docLink].employerAmount + documentList[docLink].employeeAmount);
-        } else if (withrawType == WithrawType.Employer){
+        } else if (withdrawType == WithdrawType.Employer){
             payable(documentList[docLink].employer).transfer(documentList[docLink].employerAmount + documentList[docLink].employeeAmount);
         }else {
             payable(documentList[docLink].employer).transfer(documentList[docLink].employerAmount);
@@ -156,22 +156,22 @@ contract Documents is VRFConsumerBase {
         }
         
         documentList[docLink].hasSettled = true;
-        documentList[docLink].withrawType = withrawType;
+        documentList[docLink].withdrawType = withdrawType;
     }
     
     // Cancellation Methods
     
-    function oneWayCacnel(string calldata docLink) external requiredDoc(docLink) requiredEmployerOrEmployee(docLink) {
+    function oneWayCancel(string calldata docLink) external requiredDoc(docLink) requiredEmployerOrEmployee(docLink) {
         if(votingProps[docLink].hasRequestedForVoting) revert VotingStarted();
         
         if(msg.sender == documentList[docLink].employer) {
-            withraw(WithrawType.Employee, docLink);
+            withdraw(WithdrawType.Employee, docLink);
         } else {
-            withraw(WithrawType.Employer, docLink);
+            withdraw(WithdrawType.Employer, docLink);
         }
     }
     
-    function twoWayCacnel(string calldata docLink) external requiredDoc(docLink) requiredEmployerOrEmployee(docLink) {
+    function twoWayCancel(string calldata docLink) external requiredDoc(docLink) requiredEmployerOrEmployee(docLink) {
         if(votingProps[docLink].hasRequestedForVoting) revert VotingStarted();
         
         if(msg.sender == documentList[docLink].employer) {
@@ -181,7 +181,7 @@ contract Documents is VRFConsumerBase {
         }
         
         if(documentList[docLink].hasEmployeeCanceled && documentList[docLink].hasEmployerCanceled) {
-            withraw(WithrawType.Even, docLink);
+            withdraw(WithdrawType.Revert, docLink);
         }
     }
     
@@ -192,6 +192,7 @@ contract Documents is VRFConsumerBase {
         if(votingProps[docLink].hasRequestedForVoting) revert AlreadyRequestedForVoting();
         
         votingProps[docLink].hasRequestedForVoting = true;
+        votingProps[docLink].endVotingTime = block.timestamp + 30 days;
         
         rollDice(docLink);
     }
@@ -231,11 +232,11 @@ contract Documents is VRFConsumerBase {
         documentList[docLink].employerAmount -= documentList[docLink].employerAmount * votersFeePercent / 100;
         
         if(votingProps[docLink].votingResult < 0) {
-            withraw(WithrawType.Employee, docLink);
+            withdraw(WithdrawType.Employee, docLink);
         } else if(votingProps[docLink].votingResult > 0) {
-            withraw(WithrawType.Employer, docLink);
+            withdraw(WithdrawType.Employer, docLink);
         } else {
-            withraw(WithrawType.Even, docLink);
+            withdraw(WithdrawType.Revert, docLink);
         }
     }
     
@@ -258,7 +259,7 @@ contract Documents is VRFConsumerBase {
     
     // VRF - Random Number generators
     
-    function rollDice(string calldata docLink) public returns (bytes32 requestId) {
+    function rollDice(string calldata docLink) private returns (bytes32 requestId) {
         if(LINK.balanceOf(address(this)) < sFee) revert NotEnoughLinkForGas();
         
         requestId = requestRandomness(sKeyHash, sFee);
