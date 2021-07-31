@@ -1,14 +1,14 @@
 const Documents = artifacts.require('Documents');
-const Observer = artifacts.require('Observer');
+const Observers = artifacts.require('Observers');
 const { assert } = require('chai');
 
 contract('Documents', (accounts) => {
-  const observerContractAddress = Observer.address();
+  const observersContractAddress = Observers.address;
   const ownerAccountAddress = accounts[0];
 
   let contractInstance;
   // eslint-disable-next-line mocha/no-top-level-hooks
-  beforeEach(() => Documents.new(observerContractAddress)
+  beforeEach(() => Documents.new(observersContractAddress)
     .then((instance) => {
       contractInstance = instance;
     }));
@@ -81,11 +81,11 @@ contract('Documents', (accounts) => {
   describe('vote', () => {
     it('should throw error if doc doesn\'t exist');
 
-    it('should throw error if observer does not exist');
+    it('should throw error if observers does not exist');
 
-    it('should throw error if observer has already voted');
+    it('should throw error if observers has already voted');
 
-    it('should change last vote of observer');
+    it('should change last vote of observers');
 
     it('should submit vote');
 
