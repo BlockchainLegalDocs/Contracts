@@ -7,6 +7,7 @@ error AccessDenied();
 error DoesntExists();
 error SettleTimeNotArrived();
 error AlreadySettled();
+error NotVerified();
 
 contract Observers {
     struct Observer {
@@ -37,6 +38,11 @@ contract Observers {
         if(!observersList[observer].exists) revert DoesntExists();
         _;
     }
+
+    modifier requireVerification(address observer) {
+        if(!observersList[observer].hasVerified) revert NotVerified();
+        _;
+    }
     
     constructor() {
         owner = msg.sender;
@@ -51,7 +57,7 @@ contract Observers {
     }
     
     function signup() external payable {
-        if(msg.value < 1) revert InsufficientValue();
+        if(msg.value < 1 ether) revert InsufficientValue();
         if(observersList[msg.sender].exists) revert AlreadySignedUp();
         
         observersList[msg.sender].amount = msg.value;
@@ -63,7 +69,7 @@ contract Observers {
         observersAddrList.push(observer);
     }
     
-    function changeLastVote(uint time, address observer) external requireDocContract requireSignUp(observer) {
+    function changeLastVote(uint time, address observer) external requireDocContract requireSignUp(observer) requireVerification(observer) {
         observersList[observer].lastVote = time;
     }
     
@@ -81,7 +87,7 @@ contract Observers {
         removeObserverAddress(msg.sender);
     }
     
-    function fireObserver(address observer) external requireOwner requireSignUp(observer) {
+    function fireObserver(address observer) external requireOwner requireSignUp(observer) requireVerification(observer) {
         observersList[observer].isFired = true;
         observersList[observer].amount = 0;
 

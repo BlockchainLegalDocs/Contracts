@@ -41,10 +41,17 @@ module.exports = {
     // tab if you use this network and you must also set the `host`, `port` and `network_id`
     // options below to some value.
     //
-    development: {
-      host: '127.0.0.1',
-      port: 7545,
-      network_id: '*',
+    // development: {
+    //   host: '127.0.0.1',
+    //   port: 7545,
+    //   network_id: '*',
+    // },
+    develop: {
+      port: 8545,
+      network_id: 20,
+      accounts: 5,
+      defaultEtherBalance: 500,
+      blockTime: 3,
     },
     // Another network with more advanced options...
     // advanced: {

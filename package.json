@@ -1,8 +1,9 @@
 {
   "dependencies": {
     "@chainlink/contracts": "^0.2.1",
+    "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
-    "chai": "^4.3.4"
+    "truffle": "^5.4.3"
   },
   "devDependencies": {
     "eslint": "^7.31.0",
