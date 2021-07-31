@@ -245,10 +245,13 @@ contract Documents is VRFConsumerBase {
             address currentObserverAddress = observerAddresses[docLink][i];
             uint currentVoterAmount = ObserverContract(observerContractAddr).observersList(currentObserverAddress).amount;
             
-            if(eachVotersFeeAmount < currentVoterAmount * votersMaxCashFeePercent / 100) {
+            uint voterMaxFee = currentVoterAmount * votersMaxCashFeePercent / 100;
+
+            if(eachVotersFeeAmount < voterMaxFee) {
                 payable(currentObserverAddress).transfer(eachVotersFeeAmount);
             } else {
-                payable(currentObserverAddress).transfer(currentVoterAmount * votersMaxCashFeePercent / 100);
+                payable(currentObserverAddress).transfer(voterMaxFee);
+                ObserverContract(observerContractAddr).increaseObserverAmount(eachVotersFeeAmount - voterMaxFee, currentObserverAddress);
             }
         }
     }

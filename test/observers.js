@@ -1,12 +1,6 @@
 const Observers = artifacts.require('Observers');
 const { assert } = require('chai');
 
-/*
- * uncomment accounts to access the test accounts made available by the
- * Ethereum client
- * See docs: https://www.trufflesuite.com/docs/truffle/testing/writing-tests-in-javascript
- */
-
 contract('Observers', (accounts) => {
   const ownerAccountAddress = accounts[0];
 
@@ -81,8 +75,141 @@ contract('Observers', (accounts) => {
   });
 
   describe('verify', () => {
-    it('should throw error if callee is not owner', async () => assert.isFulfilled(contractInstance.verify({
-      from: accounts[0],
+    it('should throw error if callee is not owner', async () => {
+      await contractInstance.signup({
+        from: accounts[2],
+        value: 2,
+      });
+      return assert.isRejected(contractInstance.verify(accounts[2], {
+        from: accounts[1],
+      }));
+    });
+    it('should not throw error if callee is not owner', async () => {
+      await contractInstance.signup({
+        from: accounts[1],
+        value: 2,
+      });
+      return assert.isFulfilled(contractInstance.verify(accounts[1], {
+        from: ownerAccountAddress,
+      }));
+    });
+    it('should throw error if target observer hasn\'t signed up', async () => assert.isRejected(contractInstance.verify(accounts[1], {
+      from: ownerAccountAddress,
     })));
+    it('should verify observer', async () => {
+      const VALUE = 2;
+      const ACCOUNT = accounts[1];
+
+      await contractInstance.signup({
+        from: ACCOUNT,
+        value: VALUE,
+      });
+      await contractInstance.verify(ACCOUNT, {
+        from: ownerAccountAddress,
+      });
+
+      const observerItem = await contractInstance.observersList(ACCOUNT);
+      const observersAddrList = await contractInstance.getObserversAddrList();
+
+      assert.isTrue(observerItem.hasVerified);
+      assert.isTrue(observersAddrList.includes(ACCOUNT));
+    });
+  });
+
+  describe('changeLastVote', () => {
+    it('should reject if callee is not the document contract', async () => {
+      const DOC_CONTRACT_ADDRESS = accounts[1];
+
+      await contractInstance.setDocumentContractAddress(DOC_CONTRACT_ADDRESS);
+      return assert.isRejected(contractInstance.changeLastVote(accounts[3], {
+        from: accounts[2],
+      }));
+    });
+
+    it('should reject if observer hasn\'t signed up', async () => {
+      const DOC_CONTRACT_ADDRESS = accounts[1];
+
+      await contractInstance.setDocumentContractAddress(DOC_CONTRACT_ADDRESS);
+      return assert.isRejected(contractInstance.changeLastVote(accounts[2], {
+        from: DOC_CONTRACT_ADDRESS,
+      }));
+    });
+
+    it('should change lastVote of the observer', async () => {
+      const DOC_CONTRACT_ADDRESS = accounts[1];
+      const TARGET_OBSERVER = accounts[2];
+
+      await contractInstance.setDocumentContractAddress(DOC_CONTRACT_ADDRESS);
+      await contractInstance.signup({
+        from: TARGET_OBSERVER,
+        value: 2,
+      });
+
+      const NOW = Date.now();
+
+      await contractInstance.changeLastVote(NOW, TARGET_OBSERVER, {
+        from: DOC_CONTRACT_ADDRESS,
+      });
+
+      const observerItem = await contractInstance.observersList(TARGET_OBSERVER);
+
+      assert.equal(observerItem.lastVote, NOW);
+    });
+  });
+
+  describe('increaseObserverAmount', () => {
+    it('should reject if callee is not the document contract', async () => {
+      const DOC_CONTRACT_ADDRESS = accounts[1];
+
+      await contractInstance.setDocumentContractAddress(DOC_CONTRACT_ADDRESS);
+      return assert.isRejected(contractInstance.increaseObserverAmount(1, accounts[3], {
+        from: accounts[2],
+      }));
+    });
+
+    it('should reject if observer hasn\'t signed up', async () => {
+      const DOC_CONTRACT_ADDRESS = accounts[1];
+
+      await contractInstance.setDocumentContractAddress(DOC_CONTRACT_ADDRESS);
+      return assert.isRejected(contractInstance.increaseObserverAmount(1, accounts[2], {
+        from: DOC_CONTRACT_ADDRESS,
+      }));
+    });
+
+    it('should increase amount of the observer', async () => {
+      const DOC_CONTRACT_ADDRESS = accounts[1];
+      const TARGET_OBSERVER = accounts[2];
+
+      const INITIAL_VALUE = 2;
+      const PLUS_VALUE = 1;
+
+      await contractInstance.setDocumentContractAddress(DOC_CONTRACT_ADDRESS);
+      await contractInstance.signup({
+        from: TARGET_OBSERVER,
+        value: INITIAL_VALUE,
+      });
+
+      await contractInstance.increaseObserverAmount(PLUS_VALUE, TARGET_OBSERVER, {
+        from: DOC_CONTRACT_ADDRESS,
+      });
+
+      const observerItem = await contractInstance.observersList(TARGET_OBSERVER);
+
+      assert.equal(observerItem.amount, PLUS_VALUE + INITIAL_VALUE);
+    });
+  });
+
+  describe('settle', () => {
+    it('should throw error if callee hasn\'t signed up');
+
+    it('should throw error if not enough time passed from lastVote');
+
+    it('should throw error if has already settled');
+
+    it('should transfer amount to the callee on success');
+
+    it('should set status of the callee to hasSettled on success');
+
+    it('should remove callee address from observers on success');
   });
 });

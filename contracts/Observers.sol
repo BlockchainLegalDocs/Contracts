@@ -6,6 +6,7 @@ error AlreadySignedUp();
 error AccessDenied();
 error DoesntExists();
 error SettleTimeNotArrived();
+error AlreadySettled();
 
 contract Observers {
     struct Observer {
@@ -57,9 +58,9 @@ contract Observers {
         observersList[msg.sender].exists = true;
     }
     
-    function verify() external requireOwner requireSignUp(msg.sender) {
-        observersList[msg.sender].hasVerified = true;
-        observersAddrList.push(msg.sender);
+    function verify(address observer) external requireOwner requireSignUp(observer) {
+        observersList[observer].hasVerified = true;
+        observersAddrList.push(observer);
     }
     
     function changeLastVote(uint time, address observer) external requireDocContract requireSignUp(observer) {
@@ -72,8 +73,12 @@ contract Observers {
     
     function settle() external requireSignUp(msg.sender) {
         if(observersList[msg.sender].lastVote + 90 days >= block.timestamp) revert SettleTimeNotArrived();
+        if(observersList[msg.sender].hasSettled) revert AlreadySettled();
 
         payable(msg.sender).transfer(observersList[msg.sender].amount);
+        observersList[msg.sender].hasSettled = true;
+
+        removeObserverAddress(msg.sender);
     }
     
     function fireObserver(address observer) external requireOwner requireSignUp(observer) {
