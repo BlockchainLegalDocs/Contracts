@@ -193,7 +193,7 @@ contract Documents {
     
     function vote(string calldata docLink, ObserverVote voteValue) external requireDoc(docLink) {
         if(!observers[docLink][msg.sender].exists) revert ObserverNotFound();
-        if(!observers[docLink][msg.sender].hasVoted) revert ObserverAlreadyVoted();
+        if(observers[docLink][msg.sender].hasVoted) revert ObserverAlreadyVoted();
         
         ObserverContract(observerContractAddr).changeLastVote(block.timestamp, msg.sender);
         
@@ -227,10 +227,8 @@ contract Documents {
         
         if(votingProps[docLink].votingResult < 0) {
             withdraw(WithdrawType.Employee, docLink);
-        } else if(votingProps[docLink].votingResult > 0) {
-            withdraw(WithdrawType.Employer, docLink);
         } else {
-            withdraw(WithdrawType.Revert, docLink);
+            withdraw(WithdrawType.Employer, docLink);
         }
     }
     

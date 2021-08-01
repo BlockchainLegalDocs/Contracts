@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax */
 /* eslint-disable no-await-in-loop */
 const { assert } = require('chai');
 const sha256 = require('sha256');
@@ -9,6 +10,8 @@ const { toBN } = web3.utils;
 
 const ONE_ETHER = web3.utils.toWei(toBN(1));
 const VOTERS_COUNT = 5;
+const VOTERS_FEE_PERCENT = toBN('1');
+const VOTERS_MAX_CASH_FEE_PERCENT = toBN('20');
 
 function getDate(days = 0) {
   const date = new Date();
@@ -64,17 +67,24 @@ async function fillObservers({
   observerInstance,
   ownerAccountAddress,
   accounts,
+  value = ONE_ETHER,
 }) {
-  for (let i = 0; i < 10; i += 1) {
+  const observers = [];
+
+  for (let i = 10; i < 20; i += 1) {
     const currentAccount = accounts[i];
     await observerInstance.signup({
       from: currentAccount,
-      value: ONE_ETHER,
+      value,
     });
     await observerInstance.verify(currentAccount, {
       from: ownerAccountAddress,
     });
+
+    observers.push(currentAccount);
   }
+
+  return observers;
 }
 
 contract('Documents', (accounts) => {
@@ -86,6 +96,9 @@ contract('Documents', (accounts) => {
   beforeEach(async () => {
     observerInstance = await Observers.new();
     contractInstance = await Documents.new(observerInstance.address);
+    await observerInstance.setDocumentContractAddress(contractInstance.address, {
+      from: ownerAccountAddress,
+    });
   });
 
   it('should deploy contract successfully', () => {
@@ -801,30 +814,577 @@ contract('Documents', (accounts) => {
     })));
 
     it('should throw error if observers does not exist', async () => {
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+      const LINK = 'https://google.com';
 
+      await createSignedDoc({
+        link: LINK,
+        hash: `0x${sha256('hey')}`,
+        employee: EMPLOYEE,
+        employer: EMPLOYER,
+        employeeValue: ONE_ETHER.mul(toBN(2)),
+        employerValue: ONE_ETHER,
+        endTime: getDate(-2),
+        contractInstance,
+      });
+
+      const allObservers = await fillObservers({
+        ownerAccountAddress,
+        accounts,
+        observerInstance,
+      });
+
+      await contractInstance.requestVoting(LINK, {
+        from: EMPLOYER,
+      });
+
+      const observers = await contractInstance.getDocObservers(LINK);
+
+      const nonObservers = allObservers.filter((obs) => !observers.includes(obs));
+
+      const nonObserver = nonObservers[0];
+
+      return assert.isRejected(contractInstance.vote(LINK, 1, {
+        from: nonObserver,
+      }));
     });
 
-    it('should throw error if observers has already voted');
+    it('should throw error if observers has already voted', async () => {
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+      const LINK = 'https://google.com';
 
-    it('should change last vote of observers');
+      await createSignedDoc({
+        link: LINK,
+        hash: `0x${sha256('hey')}`,
+        employee: EMPLOYEE,
+        employer: EMPLOYER,
+        employeeValue: ONE_ETHER.mul(toBN(2)),
+        employerValue: ONE_ETHER,
+        endTime: getDate(-2),
+        contractInstance,
+      });
 
-    it('should submit vote');
+      await fillObservers({
+        ownerAccountAddress,
+        accounts,
+        observerInstance,
+      });
 
-    it('should increase voteResult if vote is fot Employee');
+      await contractInstance.requestVoting(LINK, {
+        from: EMPLOYER,
+      });
 
-    it('should decrease voteResult if vote is fot Employer');
+      const observers = await contractInstance.getDocObservers(LINK);
+      const targetObserver = observers[0];
 
-    it('should not finish voting if it is not the last vote');
+      await contractInstance.vote(LINK, 1, {
+        from: targetObserver,
+      });
 
-    it('should finish voting and distribute fee on last vote if employer won');
+      return assert.isRejected(contractInstance.vote(LINK, 1, {
+        from: targetObserver,
+      }));
+    });
 
-    it('should finish voting and distribute fee on last vote if employee won');
+    it('should change last vote of observers', async () => {
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+      const LINK = 'https://google.com';
 
-    it('should finish voting and distribute fee on last vote if none of sides won');
+      await createSignedDoc({
+        link: LINK,
+        hash: `0x${sha256('hey')}`,
+        employee: EMPLOYEE,
+        employer: EMPLOYER,
+        employeeValue: ONE_ETHER.mul(toBN(2)),
+        employerValue: ONE_ETHER,
+        endTime: getDate(-2),
+        contractInstance,
+      });
 
-    it('should finish voting and distribute voters fee if the fee is less than threshold');
+      await fillObservers({
+        ownerAccountAddress,
+        accounts,
+        observerInstance,
+      });
 
-    it('should finish voting and distribute voters fee and increase their amount if the fee is more than threshold');
+      await contractInstance.requestVoting(LINK, {
+        from: EMPLOYER,
+      });
+
+      const observers = await contractInstance.getDocObservers(LINK);
+      const targetObserver = observers[0];
+
+      const timestamp = getDate();
+
+      await contractInstance.vote(LINK, 1, {
+        from: targetObserver,
+      });
+
+      const observerProps = await observerInstance.observersList(targetObserver);
+
+      assert.equal(
+        observerProps.lastVote,
+        timestamp,
+      );
+    });
+
+    it('should submit vote', async () => {
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+      const LINK = 'https://google.com';
+
+      await createSignedDoc({
+        link: LINK,
+        hash: `0x${sha256('hey')}`,
+        employee: EMPLOYEE,
+        employer: EMPLOYER,
+        employeeValue: ONE_ETHER.mul(toBN(2)),
+        employerValue: ONE_ETHER,
+        endTime: getDate(-2),
+        contractInstance,
+      });
+
+      await fillObservers({
+        ownerAccountAddress,
+        accounts,
+        observerInstance,
+      });
+
+      await contractInstance.requestVoting(LINK, {
+        from: EMPLOYER,
+      });
+
+      const observers = await contractInstance.getDocObservers(LINK);
+      const targetObserver = observers[0];
+
+      const VOTE = 1;
+
+      await contractInstance.vote(LINK, VOTE, {
+        from: targetObserver,
+      });
+
+      const observerProps = await contractInstance.observers(LINK, targetObserver);
+      const votingProps = await contractInstance.votingProps(LINK);
+
+      assert.equal(
+        observerProps.vote,
+        VOTE,
+      );
+      assert.isTrue(
+        observerProps.hasVoted,
+      );
+      assert.equal(
+        votingProps.voteCount,
+        1,
+      );
+    });
+
+    it('should increase voteResult if vote is fot Employee', async () => {
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+      const LINK = 'https://google.com';
+
+      await createSignedDoc({
+        link: LINK,
+        hash: `0x${sha256('hey')}`,
+        employee: EMPLOYEE,
+        employer: EMPLOYER,
+        employeeValue: ONE_ETHER.mul(toBN(2)),
+        employerValue: ONE_ETHER,
+        endTime: getDate(-2),
+        contractInstance,
+      });
+
+      await fillObservers({
+        ownerAccountAddress,
+        accounts,
+        observerInstance,
+      });
+
+      await contractInstance.requestVoting(LINK, {
+        from: EMPLOYER,
+      });
+
+      const observers = await contractInstance.getDocObservers(LINK);
+      const targetObserver = observers[0];
+
+      const VOTE = 1;
+
+      await contractInstance.vote(LINK, VOTE, {
+        from: targetObserver,
+      });
+
+      const votingProps = await contractInstance.votingProps(LINK);
+
+      assert.equal(
+        votingProps.votingResult,
+        -1,
+      );
+    });
+
+    it('should decrease voteResult if vote is fot Employer', async () => {
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+      const LINK = 'https://google.com';
+
+      await createSignedDoc({
+        link: LINK,
+        hash: `0x${sha256('hey')}`,
+        employee: EMPLOYEE,
+        employer: EMPLOYER,
+        employeeValue: ONE_ETHER.mul(toBN(2)),
+        employerValue: ONE_ETHER,
+        endTime: getDate(-2),
+        contractInstance,
+      });
+
+      await fillObservers({
+        ownerAccountAddress,
+        accounts,
+        observerInstance,
+      });
+
+      await contractInstance.requestVoting(LINK, {
+        from: EMPLOYER,
+      });
+
+      const observers = await contractInstance.getDocObservers(LINK);
+      const targetObserver = observers[0];
+
+      const VOTE = 0;
+
+      await contractInstance.vote(LINK, VOTE, {
+        from: targetObserver,
+      });
+
+      const votingProps = await contractInstance.votingProps(LINK);
+
+      assert.equal(
+        votingProps.votingResult,
+        1,
+      );
+    });
+
+    it('should not finish voting if it is not the last vote', async () => {
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+      const LINK = 'https://google.com';
+
+      await createSignedDoc({
+        link: LINK,
+        hash: `0x${sha256('hey')}`,
+        employee: EMPLOYEE,
+        employer: EMPLOYER,
+        employeeValue: ONE_ETHER.mul(toBN(2)),
+        employerValue: ONE_ETHER,
+        endTime: getDate(-2),
+        contractInstance,
+      });
+
+      await fillObservers({
+        ownerAccountAddress,
+        accounts,
+        observerInstance,
+      });
+
+      await contractInstance.requestVoting(LINK, {
+        from: EMPLOYER,
+      });
+
+      const observers = await contractInstance.getDocObservers(LINK);
+      const targetObserver = observers[0];
+
+      const VOTE = 1;
+
+      await contractInstance.vote(LINK, VOTE, {
+        from: targetObserver,
+      });
+
+      const docInfo = await contractInstance.documentList(LINK);
+
+      assert.isFalse(
+        docInfo.hasSettled,
+      );
+    });
+
+    it('should finish voting and distribute fee on last vote if employer won', async () => {
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+      const LINK = 'https://google.com';
+      const EMPLOYER_VALUE = ONE_ETHER;
+      const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
+
+      await createSignedDoc({
+        link: LINK,
+        hash: `0x${sha256('hey')}`,
+        employee: EMPLOYEE,
+        employer: EMPLOYER,
+        employeeValue: EMPLOYEE_VALUE,
+        employerValue: EMPLOYER_VALUE,
+        endTime: getDate(-2),
+        contractInstance,
+      });
+
+      await fillObservers({
+        ownerAccountAddress,
+        accounts,
+        observerInstance,
+      });
+
+      await contractInstance.requestVoting(LINK, {
+        from: EMPLOYER,
+      });
+
+      const prevEmployeeBalance = toBN(await web3.eth.getBalance(EMPLOYEE));
+      const prevEmployerBalance = toBN(await web3.eth.getBalance(EMPLOYER));
+
+      const observers = await contractInstance.getDocObservers(LINK);
+
+      const VOTE = 0;
+
+      for (const observer of observers) {
+        await contractInstance.vote(LINK, VOTE, {
+          from: observer,
+        });
+      }
+
+      const employeeBalance = toBN(await web3.eth.getBalance(EMPLOYEE));
+      const employerBalance = toBN(await web3.eth.getBalance(EMPLOYER));
+
+      assert.equal(
+        prevEmployerBalance.add(EMPLOYEE_VALUE).add(EMPLOYER_VALUE).sub(
+          EMPLOYEE_VALUE.add(EMPLOYER_VALUE).mul(VOTERS_FEE_PERCENT).div(toBN('100')),
+        ).toString(),
+        employerBalance.toString(),
+      );
+
+      assert.equal(
+        prevEmployeeBalance.toString(),
+        employeeBalance.toString(),
+      );
+    });
+
+    it('should finish voting and distribute fee on last vote if employee won', async () => {
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+      const LINK = 'https://google.com';
+      const EMPLOYER_VALUE = ONE_ETHER;
+      const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
+
+      await createSignedDoc({
+        link: LINK,
+        hash: `0x${sha256('hey')}`,
+        employee: EMPLOYEE,
+        employer: EMPLOYER,
+        employeeValue: EMPLOYEE_VALUE,
+        employerValue: EMPLOYER_VALUE,
+        endTime: getDate(-2),
+        contractInstance,
+      });
+
+      await fillObservers({
+        ownerAccountAddress,
+        accounts,
+        observerInstance,
+      });
+
+      await contractInstance.requestVoting(LINK, {
+        from: EMPLOYER,
+      });
+
+      const prevEmployeeBalance = toBN(await web3.eth.getBalance(EMPLOYEE));
+      const prevEmployerBalance = toBN(await web3.eth.getBalance(EMPLOYER));
+
+      const observers = await contractInstance.getDocObservers(LINK);
+
+      const VOTE = 1;
+
+      for (const observer of observers) {
+        await contractInstance.vote(LINK, VOTE, {
+          from: observer,
+        });
+      }
+
+      const employeeBalance = toBN(await web3.eth.getBalance(EMPLOYEE));
+      const employerBalance = toBN(await web3.eth.getBalance(EMPLOYER));
+
+      assert.equal(
+        prevEmployeeBalance.add(EMPLOYEE_VALUE).add(EMPLOYER_VALUE).sub(
+          EMPLOYEE_VALUE.add(EMPLOYER_VALUE).mul(VOTERS_FEE_PERCENT).div(toBN('100')),
+        ).toString(),
+        employeeBalance.toString(),
+      );
+
+      assert.equal(
+        prevEmployerBalance.toString(),
+        employerBalance.toString(),
+      );
+    });
+
+    it('should finish voting and distribute voters fee if the fee is less than threshold', async () => {
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+      const LINK = 'https://google.com';
+      const EMPLOYER_VALUE = ONE_ETHER;
+      const EMPLOYEE_VALUE = ONE_ETHER;
+
+      await createSignedDoc({
+        link: LINK,
+        hash: `0x${sha256('hey')}`,
+        employee: EMPLOYEE,
+        employer: EMPLOYER,
+        employeeValue: EMPLOYEE_VALUE,
+        employerValue: EMPLOYER_VALUE,
+        endTime: getDate(-2),
+        contractInstance,
+      });
+
+      await fillObservers({
+        ownerAccountAddress,
+        accounts,
+        observerInstance,
+        value: ONE_ETHER,
+      });
+
+      await contractInstance.requestVoting(LINK, {
+        from: EMPLOYER,
+      });
+
+      const observers = await contractInstance.getDocObservers(LINK);
+      const observersBalances = [];
+      const observersAmounts = [];
+
+      const VOTE = 1;
+
+      for (const observer of observers) {
+        const observerBalance = toBN(await web3.eth.getBalance(observer));
+        const observerProps = await observerInstance.observersList(observer);
+        const observerAmount = observerProps.amount;
+
+        const info = await contractInstance.vote(LINK, VOTE, {
+          from: observer,
+        });
+
+        const gas = await getGas(info);
+
+        observersBalances.push(observerBalance.sub(gas));
+        observersAmounts.push(observerAmount);
+      }
+
+      for (let i = 0; i < observers.length; i += 1) {
+        const observer = observers[i];
+        const observerFinalBalance = toBN(await web3.eth.getBalance(observer));
+        const observerFinalProps = await observerInstance.observersList(observer);
+        const observerFinalAmount = observerFinalProps.amount;
+
+        const observerPrevBalance = observersBalances[i];
+        const observerPrevAmount = observersAmounts[i];
+
+        assert.equal(
+          observerFinalBalance.toString(),
+          observerPrevBalance.add(
+            EMPLOYEE_VALUE.add(EMPLOYER_VALUE)
+              .mul(VOTERS_FEE_PERCENT)
+              .div(toBN(100))
+              .div(toBN(VOTERS_COUNT)),
+          ).toString(),
+        );
+
+        assert.equal(
+          observerPrevAmount.toString(),
+          observerFinalAmount.toString(),
+        );
+      }
+    });
+
+    it('should finish voting and distribute voters fee and increase their amount if the fee is more than threshold', async () => {
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+      const LINK = 'https://google.com';
+      const EMPLOYER_VALUE = ONE_ETHER.mul(toBN(50));
+      const EMPLOYEE_VALUE = ONE_ETHER;
+      const OBSERVER_VALUE = ONE_ETHER;
+
+      await createSignedDoc({
+        link: LINK,
+        hash: `0x${sha256('hey')}`,
+        employee: EMPLOYEE,
+        employer: EMPLOYER,
+        employeeValue: EMPLOYEE_VALUE,
+        employerValue: EMPLOYER_VALUE,
+        endTime: getDate(-2),
+        contractInstance,
+      });
+
+      await fillObservers({
+        ownerAccountAddress,
+        accounts,
+        observerInstance,
+        value: OBSERVER_VALUE,
+      });
+
+      await contractInstance.requestVoting(LINK, {
+        from: EMPLOYER,
+      });
+
+      const observers = await contractInstance.getDocObservers(LINK);
+      const observersBalances = [];
+      const observersAmounts = [];
+
+      const VOTE = 1;
+
+      for (const observer of observers) {
+        const observerBalance = toBN(await web3.eth.getBalance(observer));
+        const observerProps = await observerInstance.observersList(observer);
+        const observerAmount = observerProps.amount;
+
+        const info = await contractInstance.vote(LINK, VOTE, {
+          from: observer,
+        });
+
+        const gas = await getGas(info);
+
+        observersBalances.push(observerBalance.sub(gas));
+        observersAmounts.push(observerAmount);
+      }
+
+      for (let i = 0; i < observers.length; i += 1) {
+        const observer = observers[i];
+        const observerFinalBalance = toBN(await web3.eth.getBalance(observer));
+        const observerFinalProps = await observerInstance.observersList(observer);
+        const observerFinalAmount = observerFinalProps.amount;
+
+        const observerPrevBalance = observersBalances[i];
+        const observerPrevAmount = observersAmounts[i];
+
+        const valueToBeAddedToBalance = OBSERVER_VALUE
+          .mul(VOTERS_MAX_CASH_FEE_PERCENT)
+          .div(toBN(100));
+
+        assert.equal(
+          observerFinalBalance.toString(),
+          observerPrevBalance.add(
+            valueToBeAddedToBalance,
+          ).toString(),
+        );
+
+        assert.equal(
+          observerPrevAmount.add(
+            EMPLOYEE_VALUE
+              .add(EMPLOYER_VALUE)
+              .mul(VOTERS_FEE_PERCENT)
+              .div(toBN(VOTERS_COUNT))
+              .div(toBN(100))
+              .sub(valueToBeAddedToBalance),
+          ).toString(),
+          observerFinalAmount
+            .toString(),
+        );
+      }
+    });
   });
 
   describe('finishVotingDueTime', () => {

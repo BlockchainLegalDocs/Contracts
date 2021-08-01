@@ -51,7 +51,7 @@ module.exports = {
       port: 8545,
       network_id: 20,
       accounts: 100,
-      defaultEtherBalance: 500,
+      defaultEtherBalance: 10000,
     },
     // Another network with more advanced options...
     // advanced: {
