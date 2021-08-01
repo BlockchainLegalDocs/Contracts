@@ -8,6 +8,13 @@ const { toBN } = web3.utils;
 
 const ONE_ETHER = web3.utils.toWei(toBN(1));
 
+async function getGas(transInfo) {
+  const tx = await web3.eth.getTransaction(transInfo.tx);
+  const gasPrice = toBN(tx.gasPrice);
+  const gasUsed = toBN(transInfo.receipt.gasUsed);
+  return gasPrice.mul(gasUsed);
+}
+
 contract('Documents', (accounts) => {
   const observersContractAddress = Observers.address;
   const ownerAccountAddress = accounts[0];
@@ -181,7 +188,7 @@ contract('Documents', (accounts) => {
       }));
     });
 
-    it.only('should throw error if voting has already been started', async () => {
+    it.skip('should throw error if voting has already been started', async () => {
       const LINK = 'https://google.com';
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
@@ -202,22 +209,124 @@ contract('Documents', (accounts) => {
         from: EMPLOYEE,
         value: EMPLOYEE_VALUE,
       });
-      try {
-        await contractInstance.requestVoting(LINK, {
-          from: EMPLOYER,
-        });
-      } catch (e) {
-        console.log(e);
-      }
+      await contractInstance.requestVoting(LINK, {
+        from: EMPLOYER,
+      });
 
       return assert.isRejected(contractInstance.oneWayCancel(LINK, {
         from: EMPLOYER,
       }));
     });
 
-    it('should withdraw money to employer\'s account if the caller is the employee');
+    it('should withdraw money to employer\'s account if the caller is the employee', async () => {
+      const LINK = 'https://google.com';
+      const HASH = `0x${sha256('hey')}`;
+      const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
+      const EMPLOYER_VALUE = ONE_ETHER;
+      const END_TIME = Date.now();
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
 
-    it('should withdraw money to employee\'s account if the caller is the employer');
+      await contractInstance.add(LINK, HASH, EMPLOYEE_VALUE, END_TIME, {
+        value: EMPLOYER_VALUE,
+        from: EMPLOYER,
+      });
+
+      await contractInstance.employeeSign(LINK, {
+        from: EMPLOYEE,
+        value: EMPLOYEE_VALUE,
+      });
+
+      const prevEmployerBalance = toBN(await web3.eth.getBalance(EMPLOYER));
+      const prevEmployeeBalance = toBN(await web3.eth.getBalance(EMPLOYEE));
+
+      const transInfo = await contractInstance.oneWayCancel(LINK, {
+        from: EMPLOYEE,
+      });
+      const gas = await getGas(transInfo);
+
+      const finalEmployerBalance = toBN(await web3.eth.getBalance(EMPLOYER));
+      const finalEmployeeBalance = toBN(await web3.eth.getBalance(EMPLOYEE));
+
+      assert.equal(
+        finalEmployerBalance.toString(),
+        prevEmployerBalance.add(EMPLOYEE_VALUE).add(EMPLOYER_VALUE).toString(),
+      );
+
+      assert.equal(
+        finalEmployeeBalance.toString(),
+        prevEmployeeBalance.sub(gas).toString(),
+      );
+    });
+
+    it('should withdraw money to employee\'s account if the caller is the employer', async () => {
+      const LINK = 'https://google.com';
+      const HASH = `0x${sha256('hey')}`;
+      const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
+      const EMPLOYER_VALUE = ONE_ETHER;
+      const END_TIME = Date.now();
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+
+      await contractInstance.add(LINK, HASH, EMPLOYEE_VALUE, END_TIME, {
+        value: EMPLOYER_VALUE,
+        from: EMPLOYER,
+      });
+
+      await contractInstance.employeeSign(LINK, {
+        from: EMPLOYEE,
+        value: EMPLOYEE_VALUE,
+      });
+
+      const prevEmployerBalance = toBN(await web3.eth.getBalance(EMPLOYER));
+      const prevEmployeeBalance = toBN(await web3.eth.getBalance(EMPLOYEE));
+
+      const transInfo = await contractInstance.oneWayCancel(LINK, {
+        from: EMPLOYER,
+      });
+      const gas = await getGas(transInfo);
+
+      const finalEmployerBalance = toBN(await web3.eth.getBalance(EMPLOYER));
+      const finalEmployeeBalance = toBN(await web3.eth.getBalance(EMPLOYEE));
+
+      assert.equal(
+        finalEmployeeBalance.toString(),
+        prevEmployeeBalance.add(EMPLOYEE_VALUE).add(EMPLOYER_VALUE).toString(),
+      );
+
+      assert.equal(
+        finalEmployerBalance.toString(),
+        prevEmployerBalance.sub(gas).toString(),
+      );
+    });
+
+    it('should throw error if already settled', async () => {
+      const LINK = 'https://google.com';
+      const HASH = `0x${sha256('hey')}`;
+      const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
+      const EMPLOYER_VALUE = ONE_ETHER;
+      const END_TIME = Date.now();
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+
+      await contractInstance.add(LINK, HASH, EMPLOYEE_VALUE, END_TIME, {
+        value: EMPLOYER_VALUE,
+        from: EMPLOYER,
+      });
+
+      await contractInstance.employeeSign(LINK, {
+        from: EMPLOYEE,
+        value: EMPLOYEE_VALUE,
+      });
+
+      await contractInstance.oneWayCancel(LINK, {
+        from: EMPLOYER,
+      });
+
+      return assert.isRejected(contractInstance.oneWayCancel(LINK, {
+        from: EMPLOYEE,
+      }));
+    });
   });
 
   describe('twoWayCancel', () => {
@@ -227,16 +336,217 @@ contract('Documents', (accounts) => {
     })));
 
     it('should throw error if caller is neither employer nor employee', async () => {
+      const LINK = 'https://google.com';
+      const HASH = `0x${sha256('hey')}`;
+      const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
+      const EMPLOYER_VALUE = ONE_ETHER;
+      const END_TIME = Date.now();
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+      const CALLER = accounts[3];
 
+      await contractInstance.add(LINK, HASH, EMPLOYEE_VALUE, END_TIME, {
+        value: EMPLOYER_VALUE,
+        from: EMPLOYER,
+      });
+
+      await contractInstance.employeeSign(LINK, {
+        from: EMPLOYEE,
+        value: EMPLOYEE_VALUE,
+      });
+
+      return assert.isRejected(contractInstance.twoWayCancel(LINK, {
+        from: CALLER,
+      }));
     });
 
-    it('should throw error if voting has already been started');
+    it.skip('should throw error if voting has already been started', async () => {
+      const LINK = 'https://google.com';
+      const HASH = `0x${sha256('hey')}`;
+      const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
+      const EMPLOYER_VALUE = ONE_ETHER;
 
-    it('should not withdraw money if only employee has signed it');
+      const date = new Date();
+      const END_TIME = Math.floor(date.setDate(date.getDate() - 2) / 1000);
 
-    it('should not withdraw money if only employer has signed it');
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
 
-    it('should withdraw money to each other\'s account if both side has signed it');
+      await contractInstance.add(LINK, HASH, EMPLOYEE_VALUE, END_TIME, {
+        value: EMPLOYER_VALUE,
+        from: EMPLOYER,
+      });
+
+      await contractInstance.employeeSign(LINK, {
+        from: EMPLOYEE,
+        value: EMPLOYEE_VALUE,
+      });
+      await contractInstance.requestVoting(LINK, {
+        from: EMPLOYER,
+      });
+
+      return assert.isRejected(contractInstance.twoWayCancel(LINK, {
+        from: EMPLOYER,
+      }));
+    });
+
+    it('should not withdraw money if only employee has signed it', async () => {
+      const LINK = 'https://google.com';
+      const HASH = `0x${sha256('hey')}`;
+      const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
+      const EMPLOYER_VALUE = ONE_ETHER;
+      const END_TIME = Date.now();
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+
+      await contractInstance.add(LINK, HASH, EMPLOYEE_VALUE, END_TIME, {
+        value: EMPLOYER_VALUE,
+        from: EMPLOYER,
+      });
+
+      await contractInstance.employeeSign(LINK, {
+        from: EMPLOYEE,
+        value: EMPLOYEE_VALUE,
+      });
+
+      const prevEmployerBalance = toBN(await web3.eth.getBalance(EMPLOYER));
+      const prevEmployeeBalance = toBN(await web3.eth.getBalance(EMPLOYEE));
+
+      const transInfo = await contractInstance.twoWayCancel(LINK, {
+        from: EMPLOYER,
+      });
+      const gas = await getGas(transInfo);
+
+      const finalEmployerBalance = toBN(await web3.eth.getBalance(EMPLOYER));
+      const finalEmployeeBalance = toBN(await web3.eth.getBalance(EMPLOYEE));
+
+      assert.equal(
+        finalEmployeeBalance.toString(),
+        prevEmployeeBalance.toString(),
+      );
+
+      assert.equal(
+        finalEmployerBalance.toString(),
+        prevEmployerBalance.sub(gas).toString(),
+      );
+    });
+
+    it('should not withdraw money if only employer has signed it', async () => {
+      const LINK = 'https://google.com';
+      const HASH = `0x${sha256('hey')}`;
+      const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
+      const EMPLOYER_VALUE = ONE_ETHER;
+      const END_TIME = Date.now();
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+
+      await contractInstance.add(LINK, HASH, EMPLOYEE_VALUE, END_TIME, {
+        value: EMPLOYER_VALUE,
+        from: EMPLOYER,
+      });
+
+      await contractInstance.employeeSign(LINK, {
+        from: EMPLOYEE,
+        value: EMPLOYEE_VALUE,
+      });
+
+      const prevEmployerBalance = toBN(await web3.eth.getBalance(EMPLOYER));
+      const prevEmployeeBalance = toBN(await web3.eth.getBalance(EMPLOYEE));
+
+      const transInfo = await contractInstance.twoWayCancel(LINK, {
+        from: EMPLOYEE,
+      });
+      const gas = await getGas(transInfo);
+
+      const finalEmployerBalance = toBN(await web3.eth.getBalance(EMPLOYER));
+      const finalEmployeeBalance = toBN(await web3.eth.getBalance(EMPLOYEE));
+
+      assert.equal(
+        finalEmployerBalance.toString(),
+        prevEmployerBalance.toString(),
+      );
+
+      assert.equal(
+        finalEmployeeBalance.toString(),
+        prevEmployeeBalance.sub(gas).toString(),
+      );
+    });
+
+    it('should withdraw money to each other\'s account if both side has signed it', async () => {
+      const LINK = 'https://google.com';
+      const HASH = `0x${sha256('hey')}`;
+      const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
+      const EMPLOYER_VALUE = ONE_ETHER;
+      const END_TIME = Date.now();
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+
+      await contractInstance.add(LINK, HASH, EMPLOYEE_VALUE, END_TIME, {
+        value: EMPLOYER_VALUE,
+        from: EMPLOYER,
+      });
+
+      await contractInstance.employeeSign(LINK, {
+        from: EMPLOYEE,
+        value: EMPLOYEE_VALUE,
+      });
+
+      const prevEmployerBalance = toBN(await web3.eth.getBalance(EMPLOYER));
+      const prevEmployeeBalance = toBN(await web3.eth.getBalance(EMPLOYEE));
+
+      const employeeTransInfo = await contractInstance.twoWayCancel(LINK, {
+        from: EMPLOYEE,
+      });
+      const employerTransInfo = await contractInstance.twoWayCancel(LINK, {
+        from: EMPLOYER,
+      });
+      const employerGasUsed = await getGas(employerTransInfo);
+      const employeeGasUsed = await getGas(employeeTransInfo);
+
+      const finalEmployerBalance = toBN(await web3.eth.getBalance(EMPLOYER));
+      const finalEmployeeBalance = toBN(await web3.eth.getBalance(EMPLOYEE));
+
+      assert.equal(
+        finalEmployeeBalance.toString(),
+        prevEmployeeBalance.add(EMPLOYEE_VALUE).sub(employeeGasUsed).toString(),
+      );
+
+      assert.equal(
+        finalEmployerBalance.toString(),
+        prevEmployerBalance.add(EMPLOYER_VALUE).sub(employerGasUsed).toString(),
+      );
+    });
+
+    it('should throw error if already settled', async () => {
+      const LINK = 'https://google.com';
+      const HASH = `0x${sha256('hey')}`;
+      const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
+      const EMPLOYER_VALUE = ONE_ETHER;
+      const END_TIME = Date.now();
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+
+      await contractInstance.add(LINK, HASH, EMPLOYEE_VALUE, END_TIME, {
+        value: EMPLOYER_VALUE,
+        from: EMPLOYER,
+      });
+
+      await contractInstance.employeeSign(LINK, {
+        from: EMPLOYEE,
+        value: EMPLOYEE_VALUE,
+      });
+
+      await contractInstance.twoWayCancel(LINK, {
+        from: EMPLOYEE,
+      });
+      await contractInstance.twoWayCancel(LINK, {
+        from: EMPLOYER,
+      });
+
+      return assert.isRejected(contractInstance.twoWayCancel(LINK, {
+        from: EMPLOYER,
+      }));
+    });
   });
 
   describe('requestVoting', () => {
@@ -245,15 +555,62 @@ contract('Documents', (accounts) => {
       value: ONE_ETHER,
     })));
 
-    it('should throw error if caller is neither employer nor employee');
+    it('should throw error if caller is neither employer nor employee', async () => {
+      const LINK = 'https://google.com';
+      const HASH = `0x${sha256('hey')}`;
+      const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
+      const EMPLOYER_VALUE = ONE_ETHER;
+      const date = new Date();
+      const END_TIME = date.setDate(date.getDate() - 1);
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+      const CALLER = accounts[3];
 
-    it('should throw error if endTime hasn\'t arrived yet');
+      await contractInstance.add(LINK, HASH, EMPLOYEE_VALUE, END_TIME, {
+        value: EMPLOYER_VALUE,
+        from: EMPLOYER,
+      });
 
-    it('should throw error if voting has already been requested');
+      await contractInstance.employeeSign(LINK, {
+        from: EMPLOYEE,
+        value: EMPLOYEE_VALUE,
+      });
 
-    it('should set vote\'s properties');
+      return assert.isRejected(contractInstance.requestVoting(LINK, {
+        from: CALLER,
+      }));
+    });
 
-    it('should pick the voters randomly');
+    it('should throw error if endTime hasn\'t arrived yet', async () => {
+      const LINK = 'https://google.com';
+      const HASH = `0x${sha256('hey')}`;
+      const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
+      const EMPLOYER_VALUE = ONE_ETHER;
+      const date = new Date();
+      const END_TIME = date.setDate(date.getDate() + 10);
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+
+      await contractInstance.add(LINK, HASH, EMPLOYEE_VALUE, END_TIME, {
+        value: EMPLOYER_VALUE,
+        from: EMPLOYER,
+      });
+
+      await contractInstance.employeeSign(LINK, {
+        from: EMPLOYEE,
+        value: EMPLOYEE_VALUE,
+      });
+
+      return assert.isRejected(contractInstance.requestVoting(LINK, {
+        from: EMPLOYEE,
+      }));
+    });
+
+    it.skip('should throw error if voting has already been requested');
+
+    it.skip('should set vote\'s properties');
+
+    it.skip('should pick the voters randomly');
   });
 
   describe('vote', () => {
@@ -293,6 +650,6 @@ contract('Documents', (accounts) => {
       value: ONE_ETHER,
     })));
 
-    it('should throw error if voting end time hasn\'t arrived');
+    it.skip('should throw error if voting end time hasn\'t arrived');
   });
 });
