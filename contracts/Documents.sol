@@ -85,8 +85,8 @@ contract Documents is VRFConsumerBase {
     uint8 constant private votersFeePercent = 1;
     uint8 constant private votersMaxCashFeePercent = 20;
 
-    bytes32 constant private sKeyHash = 0x2ed0feb3e7fd2022120aa84fab1945545a9f2ffc9076fd6156fa96eaff4c1311;
-    uint256 constant private sFee = 100000000000000000;
+    bytes32 immutable private sKeyHash;
+    uint256 immutable private sFee;
     mapping(bytes32 => string) private sRollersDocs;
     uint256 private constant ROLL_IN_PROGRESS = 42;
     
@@ -105,11 +105,13 @@ contract Documents is VRFConsumerBase {
         _;
     }
     
-    constructor(address newObserverContractAddr) VRFConsumerBase(
-        0xb3dCcb4Cf7a26f6cf6B120Cf5A73875B7BBc655B,
-        0x01BE23585060835E02B77ef475b0Cc51aA1e0709
+    constructor(address newObserverContractAddr, bytes32 newSKeyHash, uint newSFee, address coordinator, address link) VRFConsumerBase(
+        coordinator,
+        link
     ) {
         owner = msg.sender;
+        sKeyHash = newSKeyHash;
+        sFee = newSFee; 
         observerContractAddr = newObserverContractAddr;
     }
     
