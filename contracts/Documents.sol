@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.6;
 
-import "@chainlink/contracts/src/v0.8/VRFConsumerBase.sol";
-
 error InsufficientValue();
 error AccessDenied();
 error AlreadyExists();
@@ -32,7 +30,7 @@ interface ObserverContract {
     function changeLastVote(uint time, address observer) external;
 }
 
-contract Documents is VRFConsumerBase {
+contract Documents {
     enum WithdrawType {
         Employee,
         Employer,
@@ -85,11 +83,6 @@ contract Documents is VRFConsumerBase {
     uint8 constant private votersFeePercent = 1;
     uint8 constant private votersMaxCashFeePercent = 20;
 
-    bytes32 immutable private sKeyHash;
-    uint256 immutable private sFee;
-    mapping(bytes32 => string) private sRollersDocs;
-    uint256 private constant ROLL_IN_PROGRESS = 42;
-    
     modifier requireOwner() {
         if(msg.sender != owner) revert AccessDenied();
         _;
@@ -105,13 +98,8 @@ contract Documents is VRFConsumerBase {
         _;
     }
     
-    constructor(address newObserverContractAddr, bytes32 newSKeyHash, uint newSFee, address coordinator, address link) VRFConsumerBase(
-        coordinator,
-        link
-    ) {
+    constructor(address newObserverContractAddr) {
         owner = msg.sender;
-        sKeyHash = newSKeyHash;
-        sFee = newSFee; 
         observerContractAddr = newObserverContractAddr;
     }
     
@@ -196,7 +184,7 @@ contract Documents is VRFConsumerBase {
         votingProps[docLink].hasRequestedForVoting = true;
         votingProps[docLink].endVotingTime = block.timestamp + 30 days;
         
-        rollDice(docLink);
+        pickRandomObservers(docLink);
     }
     
     function vote(string calldata docLink, ObserverVote voteValue) external requireDoc(docLink) {
@@ -259,27 +247,24 @@ contract Documents is VRFConsumerBase {
         }
     }
     
-    // VRF - Random Number generators
+    // Random Number generators
     
-    function rollDice(string calldata docLink) private returns (bytes32 requestId) {
-        if(LINK.balanceOf(address(this)) < sFee) revert NotEnoughLinkForGas();
-        
-        requestId = requestRandomness(sKeyHash, sFee);
-        sRollersDocs[requestId] = docLink;
-    }
-    
-    function fulfillRandomness(bytes32 requestId, uint256 randomness) internal override {
+    function pickRandomObservers(string calldata docLink) private returns (bytes32 requestId) {
         address[] memory observersList = ObserverContract(observerContractAddr).getObserversAddrList();
         uint observersCount = observersList.length;
+        uint votersCountLimit = votersCount;
 
-        for (uint256 i = 0; i < votersCount; i++) {
-            uint randomNumber = uint256(keccak256(abi.encode(randomness, i)));
+        for (uint256 i = 0; i < votersCountLimit; i++) {
+            uint randomNumber = uint256(keccak256(abi.encode(block.timestamp, i)));
             uint randomNormalizedNumber = (randomNumber % observersCount) + 1;
-            
-            string memory docLink = sRollersDocs[requestId];
             address randomObserverAddress = observersList[randomNormalizedNumber];
-            observers[docLink][randomObserverAddress].exists = true;
-            observerAddresses[docLink].push(randomObserverAddress);
+
+            if(observers[docLink][randomObserverAddress].exists) {
+                votersCountLimit++;
+            }else {
+                observers[docLink][randomObserverAddress].exists = true;
+                observerAddresses[docLink].push(randomObserverAddress);
+            }
         }
     }
 }
