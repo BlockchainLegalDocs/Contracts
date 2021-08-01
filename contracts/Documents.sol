@@ -95,12 +95,12 @@ contract Documents is VRFConsumerBase {
         _;
     }
     
-    modifier requiredEmployerOrEmployee(string calldata docLink){
-        if(msg.sender != documentList[docLink].employee || msg.sender != documentList[docLink].employer) revert AccessDenied();
+    modifier requireEmployerOrEmployee(string calldata docLink){
+        if(msg.sender != documentList[docLink].employee && msg.sender != documentList[docLink].employer) revert AccessDenied();
         _;
     }
     
-    modifier requiredDoc(string calldata docLink) {
+    modifier requireDoc(string calldata docLink) {
         if(!documentList[docLink].exists) revert DoesntExist();
         _;
     }
@@ -115,28 +115,28 @@ contract Documents is VRFConsumerBase {
     
     // Getters
     
-    function hasSettled(string calldata docLink) external view requiredDoc(docLink) returns (bool) {
+    function hasSettled(string calldata docLink) external view requireDoc(docLink) returns (bool) {
         return documentList[docLink].hasSettled;
     }
     
     // Initial Sigings
     
-    function add(string calldata docLink, bytes32 hash, uint employerAmount, uint endTime) external payable {
+    function add(string calldata docLink, bytes32 hash, uint employeeAmount, uint endTime) external payable {
         if(documentList[docLink].exists) revert AlreadyExists();
         if(msg.value == 0) revert InsufficientValue();
         
         documentList[docLink].exists = true;
         documentList[docLink].hash = hash;
         
-        documentList[docLink].employerAmount = employerAmount;
+        documentList[docLink].employerAmount = msg.value;
         documentList[docLink].employer = msg.sender;
-        documentList[docLink].employeeAmount = msg.value;
+        documentList[docLink].employeeAmount = employeeAmount;
         
         documentList[docLink].endTime = endTime;
     }
     
-    function employeeSign(string calldata docLink) external payable requiredDoc(docLink) {
-        if(msg.value < documentList[docLink].employeeAmount) revert InsufficientValue();
+    function employeeSign(string calldata docLink) external payable requireDoc(docLink) {
+        if(msg.value != documentList[docLink].employeeAmount) revert InsufficientValue();
         
         documentList[docLink].employee = msg.sender;
     }
@@ -161,7 +161,7 @@ contract Documents is VRFConsumerBase {
     
     // Cancellation Methods
     
-    function oneWayCancel(string calldata docLink) external requiredDoc(docLink) requiredEmployerOrEmployee(docLink) {
+    function oneWayCancel(string calldata docLink) external requireDoc(docLink) requireEmployerOrEmployee(docLink) {
         if(votingProps[docLink].hasRequestedForVoting) revert VotingStarted();
         
         if(msg.sender == documentList[docLink].employer) {
@@ -171,7 +171,7 @@ contract Documents is VRFConsumerBase {
         }
     }
     
-    function twoWayCancel(string calldata docLink) external requiredDoc(docLink) requiredEmployerOrEmployee(docLink) {
+    function twoWayCancel(string calldata docLink) external requireDoc(docLink) requireEmployerOrEmployee(docLink) {
         if(votingProps[docLink].hasRequestedForVoting) revert VotingStarted();
         
         if(msg.sender == documentList[docLink].employer) {
@@ -187,7 +187,7 @@ contract Documents is VRFConsumerBase {
     
     // Voting system
     
-    function requestVoting(string calldata docLink) external requiredDoc(docLink) requiredEmployerOrEmployee(docLink) {
+    function requestVoting(string calldata docLink) external requireDoc(docLink) requireEmployerOrEmployee(docLink) {
         if(block.timestamp < documentList[docLink].endTime) revert EndTimeNotArrived();
         if(votingProps[docLink].hasRequestedForVoting) revert AlreadyRequestedForVoting();
         
@@ -197,7 +197,7 @@ contract Documents is VRFConsumerBase {
         rollDice(docLink);
     }
     
-    function vote(string calldata docLink, ObserverVote voteValue) external requiredDoc(docLink) {
+    function vote(string calldata docLink, ObserverVote voteValue) external requireDoc(docLink) {
         if(!observers[docLink][msg.sender].exists) revert ObserverNotFound();
         if(!observers[docLink][msg.sender].hasVoted) revert ObserverAlreadyVoted();
         
@@ -219,7 +219,7 @@ contract Documents is VRFConsumerBase {
         }
     }
     
-    function finishVotingDueTime(string calldata docLink) external requiredDoc(docLink) requiredEmployerOrEmployee(docLink)  {
+    function finishVotingDueTime(string calldata docLink) external requireDoc(docLink) requireEmployerOrEmployee(docLink)  {
         if(block.timestamp < votingProps[docLink].endVotingTime) revert VotingEndTimeNotArrived();
         
         finishVoting(docLink);
