@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop */
 const { assert } = require('chai');
 const sha256 = require('sha256');
 
@@ -7,6 +8,21 @@ const Observers = artifacts.require('Observers');
 const { toBN } = web3.utils;
 
 const ONE_ETHER = web3.utils.toWei(toBN(1));
+const VOTERS_COUNT = 5;
+
+function getDate(days = 0) {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return Math.floor(date.getTime() / 1000);
+}
+
+async function sleep(time) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, time);
+  });
+}
 
 async function getGas(transInfo) {
   const tx = await web3.eth.getTransaction(transInfo.tx);
@@ -15,16 +31,62 @@ async function getGas(transInfo) {
   return gasPrice.mul(gasUsed);
 }
 
+async function createSignedDoc({
+  contractInstance,
+  link,
+  hash,
+  employeeValue,
+  employerValue,
+  endTime,
+  employer,
+  employee,
+}) {
+  const LINK = link;
+  const HASH = hash;
+  const EMPLOYEE_VALUE = employeeValue;
+  const EMPLOYER_VALUE = employerValue;
+  const END_TIME = endTime;
+  const EMPLOYER = employer;
+  const EMPLOYEE = employee;
+
+  await contractInstance.add(LINK, HASH, EMPLOYEE_VALUE, END_TIME, {
+    value: EMPLOYER_VALUE,
+    from: EMPLOYER,
+  });
+
+  await contractInstance.employeeSign(LINK, {
+    from: EMPLOYEE,
+    value: EMPLOYEE_VALUE,
+  });
+}
+
+async function fillObservers({
+  observerInstance,
+  ownerAccountAddress,
+  accounts,
+}) {
+  for (let i = 0; i < 10; i += 1) {
+    const currentAccount = accounts[i];
+    await observerInstance.signup({
+      from: currentAccount,
+      value: ONE_ETHER,
+    });
+    await observerInstance.verify(currentAccount, {
+      from: ownerAccountAddress,
+    });
+  }
+}
+
 contract('Documents', (accounts) => {
-  const observersContractAddress = Observers.address;
   const ownerAccountAddress = accounts[0];
 
   let contractInstance;
+  let observerInstance;
   // eslint-disable-next-line mocha/no-top-level-hooks
-  beforeEach(() => Documents.new(observersContractAddress)
-    .then((instance) => {
-      contractInstance = instance;
-    }));
+  beforeEach(async () => {
+    observerInstance = await Observers.new();
+    contractInstance = await Documents.new(observerInstance.address);
+  });
 
   it('should deploy contract successfully', () => {
     assert.isOk(contractInstance);
@@ -65,7 +127,7 @@ contract('Documents', (accounts) => {
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
       const EMPLOYER_VALUE = ONE_ETHER;
-      const END_TIME = Date.now();
+      const END_TIME = getDate();
       const USER = accounts[1];
 
       await contractInstance.add(LINK, HASH, EMPLOYEE_VALUE, END_TIME, {
@@ -97,7 +159,7 @@ contract('Documents', (accounts) => {
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
       const EMPLOYER_VALUE = ONE_ETHER;
-      const END_TIME = Date.now();
+      const END_TIME = getDate();
       const EMPLOYER = accounts[1];
       const EMPLOYEE = accounts[2];
 
@@ -117,7 +179,7 @@ contract('Documents', (accounts) => {
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
       const EMPLOYER_VALUE = ONE_ETHER;
-      const END_TIME = Date.now();
+      const END_TIME = getDate();
       const EMPLOYER = accounts[1];
       const EMPLOYEE = accounts[2];
 
@@ -137,7 +199,7 @@ contract('Documents', (accounts) => {
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
       const EMPLOYER_VALUE = ONE_ETHER;
-      const END_TIME = Date.now();
+      const END_TIME = getDate();
       const EMPLOYER = accounts[1];
       const EMPLOYEE = accounts[2];
 
@@ -168,7 +230,7 @@ contract('Documents', (accounts) => {
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
       const EMPLOYER_VALUE = ONE_ETHER;
-      const END_TIME = Date.now();
+      const END_TIME = getDate();
       const EMPLOYER = accounts[1];
       const EMPLOYEE = accounts[2];
       const CALLER = accounts[3];
@@ -188,14 +250,13 @@ contract('Documents', (accounts) => {
       }));
     });
 
-    it.skip('should throw error if voting has already been started', async () => {
+    it('should throw error if voting has already been started', async () => {
       const LINK = 'https://google.com';
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
       const EMPLOYER_VALUE = ONE_ETHER;
 
-      const date = new Date();
-      const END_TIME = Math.floor(date.setDate(date.getDate() - 2) / 1000);
+      const END_TIME = getDate(-2);
 
       const EMPLOYER = accounts[1];
       const EMPLOYEE = accounts[2];
@@ -209,6 +270,13 @@ contract('Documents', (accounts) => {
         from: EMPLOYEE,
         value: EMPLOYEE_VALUE,
       });
+
+      await fillObservers({
+        ownerAccountAddress,
+        accounts,
+        observerInstance,
+      });
+
       await contractInstance.requestVoting(LINK, {
         from: EMPLOYER,
       });
@@ -223,7 +291,7 @@ contract('Documents', (accounts) => {
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
       const EMPLOYER_VALUE = ONE_ETHER;
-      const END_TIME = Date.now();
+      const END_TIME = getDate();
       const EMPLOYER = accounts[1];
       const EMPLOYEE = accounts[2];
 
@@ -264,7 +332,7 @@ contract('Documents', (accounts) => {
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
       const EMPLOYER_VALUE = ONE_ETHER;
-      const END_TIME = Date.now();
+      const END_TIME = getDate();
       const EMPLOYER = accounts[1];
       const EMPLOYEE = accounts[2];
 
@@ -305,7 +373,7 @@ contract('Documents', (accounts) => {
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
       const EMPLOYER_VALUE = ONE_ETHER;
-      const END_TIME = Date.now();
+      const END_TIME = getDate();
       const EMPLOYER = accounts[1];
       const EMPLOYEE = accounts[2];
 
@@ -340,7 +408,7 @@ contract('Documents', (accounts) => {
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
       const EMPLOYER_VALUE = ONE_ETHER;
-      const END_TIME = Date.now();
+      const END_TIME = getDate();
       const EMPLOYER = accounts[1];
       const EMPLOYEE = accounts[2];
       const CALLER = accounts[3];
@@ -360,14 +428,13 @@ contract('Documents', (accounts) => {
       }));
     });
 
-    it.skip('should throw error if voting has already been started', async () => {
+    it('should throw error if voting has already been started', async () => {
       const LINK = 'https://google.com';
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
       const EMPLOYER_VALUE = ONE_ETHER;
 
-      const date = new Date();
-      const END_TIME = Math.floor(date.setDate(date.getDate() - 2) / 1000);
+      const END_TIME = getDate(-2);
 
       const EMPLOYER = accounts[1];
       const EMPLOYEE = accounts[2];
@@ -395,7 +462,7 @@ contract('Documents', (accounts) => {
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
       const EMPLOYER_VALUE = ONE_ETHER;
-      const END_TIME = Date.now();
+      const END_TIME = getDate();
       const EMPLOYER = accounts[1];
       const EMPLOYEE = accounts[2];
 
@@ -436,7 +503,7 @@ contract('Documents', (accounts) => {
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
       const EMPLOYER_VALUE = ONE_ETHER;
-      const END_TIME = Date.now();
+      const END_TIME = getDate();
       const EMPLOYER = accounts[1];
       const EMPLOYEE = accounts[2];
 
@@ -477,7 +544,7 @@ contract('Documents', (accounts) => {
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
       const EMPLOYER_VALUE = ONE_ETHER;
-      const END_TIME = Date.now();
+      const END_TIME = getDate();
       const EMPLOYER = accounts[1];
       const EMPLOYEE = accounts[2];
 
@@ -522,7 +589,7 @@ contract('Documents', (accounts) => {
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
       const EMPLOYER_VALUE = ONE_ETHER;
-      const END_TIME = Date.now();
+      const END_TIME = getDate();
       const EMPLOYER = accounts[1];
       const EMPLOYEE = accounts[2];
 
@@ -560,8 +627,7 @@ contract('Documents', (accounts) => {
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
       const EMPLOYER_VALUE = ONE_ETHER;
-      const date = new Date();
-      const END_TIME = date.setDate(date.getDate() - 1);
+      const END_TIME = getDate(-1);
       const EMPLOYER = accounts[1];
       const EMPLOYEE = accounts[2];
       const CALLER = accounts[3];
@@ -586,8 +652,7 @@ contract('Documents', (accounts) => {
       const HASH = `0x${sha256('hey')}`;
       const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
       const EMPLOYER_VALUE = ONE_ETHER;
-      const date = new Date();
-      const END_TIME = date.setDate(date.getDate() + 10);
+      const END_TIME = getDate(10);
       const EMPLOYER = accounts[1];
       const EMPLOYEE = accounts[2];
 
@@ -606,11 +671,127 @@ contract('Documents', (accounts) => {
       }));
     });
 
-    it.skip('should throw error if voting has already been requested');
+    it('should throw error if voting has already been requested', async () => {
+      const LINK = 'https://google.com';
+      const HASH = `0x${sha256('hey')}`;
+      const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
+      const EMPLOYER_VALUE = ONE_ETHER;
+      const END_TIME = getDate(-2);
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
 
-    it.skip('should set vote\'s properties');
+      await contractInstance.add(LINK, HASH, EMPLOYEE_VALUE, END_TIME, {
+        value: EMPLOYER_VALUE,
+        from: EMPLOYER,
+      });
 
-    it.skip('should pick the voters randomly');
+      await contractInstance.employeeSign(LINK, {
+        from: EMPLOYEE,
+        value: EMPLOYEE_VALUE,
+      });
+
+      await fillObservers({
+        ownerAccountAddress,
+        accounts,
+        observerInstance,
+      });
+
+      await contractInstance.requestVoting(LINK, {
+        from: EMPLOYEE,
+      });
+
+      return assert.isRejected(contractInstance.requestVoting(LINK));
+    });
+
+    it('should set vote\'s properties', async () => {
+      const LINK = 'https://google.com';
+      const HASH = `0x${sha256('hey')}`;
+      const EMPLOYEE_VALUE = ONE_ETHER.mul(toBN(2));
+      const EMPLOYER_VALUE = ONE_ETHER;
+      const END_TIME = getDate(-2);
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+
+      await contractInstance.add(LINK, HASH, EMPLOYEE_VALUE, END_TIME, {
+        value: EMPLOYER_VALUE,
+        from: EMPLOYER,
+      });
+
+      await contractInstance.employeeSign(LINK, {
+        from: EMPLOYEE,
+        value: EMPLOYEE_VALUE,
+      });
+
+      await fillObservers({
+        ownerAccountAddress,
+        accounts,
+        observerInstance,
+      });
+
+      await contractInstance.requestVoting(LINK, {
+        from: EMPLOYEE,
+      });
+
+      const votingProps = await contractInstance.votingProps(LINK);
+
+      assert.isTrue(
+        votingProps.hasRequestedForVoting,
+      );
+
+      assert.equal(votingProps.endVotingTime.toString(), getDate(30));
+    });
+
+    it('should pick the voters randomly', async () => {
+      const FIRST_LINK = 'https://google.com';
+      const SECOND_LINK = 'https://pmzi.dev';
+      const EMPLOYER = accounts[1];
+      const EMPLOYEE = accounts[2];
+
+      await createSignedDoc({
+        link: FIRST_LINK,
+        hash: `0x${sha256('hey')}`,
+        employee: EMPLOYEE,
+        employer: EMPLOYER,
+        employeeValue: ONE_ETHER.mul(toBN(2)),
+        employerValue: ONE_ETHER,
+        endTime: getDate(-2),
+        contractInstance,
+      });
+
+      await createSignedDoc({
+        link: SECOND_LINK,
+        hash: `0x${sha256('hey')}`,
+        employee: EMPLOYEE,
+        employer: EMPLOYER,
+        employeeValue: ONE_ETHER.mul(toBN(2)),
+        employerValue: ONE_ETHER,
+        endTime: getDate(-2),
+        contractInstance,
+      });
+
+      await fillObservers({
+        ownerAccountAddress,
+        accounts,
+        observerInstance,
+      });
+
+      await contractInstance.requestVoting(FIRST_LINK, {
+        from: EMPLOYEE,
+      });
+
+      await sleep(1000);
+
+      await contractInstance.requestVoting(SECOND_LINK, {
+        from: EMPLOYEE,
+      });
+
+      const firstVoters = await contractInstance.getDocObservers(FIRST_LINK);
+      const secondVoters = await contractInstance.getDocObservers(SECOND_LINK);
+
+      assert.equal(firstVoters.length, VOTERS_COUNT);
+      assert.equal(secondVoters.length, VOTERS_COUNT);
+      assert.notDeepEqual(firstVoters, secondVoters);
+    });
   });
 
   describe('vote', () => {
@@ -619,7 +800,9 @@ contract('Documents', (accounts) => {
       value: ONE_ETHER,
     })));
 
-    it('should throw error if observers does not exist');
+    it('should throw error if observers does not exist', async () => {
+
+    });
 
     it('should throw error if observers has already voted');
 

@@ -108,6 +108,10 @@ contract Documents {
     function hasSettled(string calldata docLink) external view requireDoc(docLink) returns (bool) {
         return documentList[docLink].hasSettled;
     }
+
+    function getDocObservers(string calldata docLink) external view returns (address[] memory) {
+        return observerAddresses[docLink];
+    }
     
     // Initial Sigings
     
@@ -255,8 +259,8 @@ contract Documents {
         uint votersCountLimit = votersCount;
 
         for (uint256 i = 0; i < votersCountLimit; i++) {
-            uint randomNumber = uint256(keccak256(abi.encode(block.timestamp, i)));
-            uint randomNormalizedNumber = (randomNumber % observersCount) + 1;
+            uint randomNumber = uint256(keccak256(abi.encode(block.timestamp, block.difficulty, i)));
+            uint randomNormalizedNumber = (randomNumber % observersCount);
             address randomObserverAddress = observersList[randomNormalizedNumber];
 
             if(observers[docLink][randomObserverAddress].exists) {

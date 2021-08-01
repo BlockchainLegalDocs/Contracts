@@ -50,7 +50,7 @@ module.exports = {
       host: '127.0.0.1',
       port: 8545,
       network_id: 20,
-      accounts: 30,
+      accounts: 100,
       defaultEtherBalance: 500,
     },
     // Another network with more advanced options...
