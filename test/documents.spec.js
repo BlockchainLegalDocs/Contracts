@@ -99,6 +99,9 @@ contract('Documents', (accounts) => {
     await observerInstance.setDocumentContractAddress(contractInstance.address, {
       from: ownerAccountAddress,
     });
+
+    // To avoid down time!!!
+    await sleep(500);
   });
 
   it('should deploy contract successfully', () => {
@@ -461,6 +464,13 @@ contract('Documents', (accounts) => {
         from: EMPLOYEE,
         value: EMPLOYEE_VALUE,
       });
+
+      await fillObservers({
+        observerInstance,
+        accounts,
+        ownerAccountAddress,
+      });
+
       await contractInstance.requestVoting(LINK, {
         from: EMPLOYER,
       });
@@ -1301,10 +1311,10 @@ contract('Documents', (accounts) => {
     });
 
     it('should finish voting and distribute voters fee and increase their amount if the fee is more than threshold', async () => {
-      const EMPLOYER = accounts[1];
-      const EMPLOYEE = accounts[2];
+      const EMPLOYER = accounts[5];
+      const EMPLOYEE = accounts[6];
       const LINK = 'https://google.com';
-      const EMPLOYER_VALUE = ONE_ETHER.mul(toBN(50));
+      const EMPLOYER_VALUE = ONE_ETHER.mul(toBN(100));
       const EMPLOYEE_VALUE = ONE_ETHER;
       const OBSERVER_VALUE = ONE_ETHER;
 
@@ -1393,6 +1403,39 @@ contract('Documents', (accounts) => {
       value: ONE_ETHER,
     })));
 
-    it.skip('should throw error if voting end time hasn\'t arrived');
+    it('should throw error if voting end time hasn\'t arrived', async () => {
+      const EMPLOYER = accounts[5];
+      const EMPLOYEE = accounts[6];
+      const LINK = 'https://google.com';
+      const EMPLOYER_VALUE = ONE_ETHER.mul(toBN(100));
+      const EMPLOYEE_VALUE = ONE_ETHER;
+      const OBSERVER_VALUE = ONE_ETHER;
+
+      await createSignedDoc({
+        link: LINK,
+        hash: `0x${sha256('hey')}`,
+        employee: EMPLOYEE,
+        employer: EMPLOYER,
+        employeeValue: EMPLOYEE_VALUE,
+        employerValue: EMPLOYER_VALUE,
+        endTime: getDate(-2),
+        contractInstance,
+      });
+
+      await fillObservers({
+        ownerAccountAddress,
+        accounts,
+        observerInstance,
+        value: OBSERVER_VALUE,
+      });
+
+      await contractInstance.requestVoting(LINK, {
+        from: EMPLOYEE,
+      });
+
+      return assert.isRejected(contractInstance.finishVotingDueTime(LINK, {
+        from: EMPLOYEE,
+      }));
+    });
   });
 });
