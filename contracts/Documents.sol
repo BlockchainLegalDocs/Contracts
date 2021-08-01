@@ -249,7 +249,7 @@ contract Documents {
     
     // Random Number generators
     
-    function pickRandomObservers(string calldata docLink) private returns (bytes32 requestId) {
+    function pickRandomObservers(string calldata docLink) private {
         address[] memory observersList = ObserverContract(observerContractAddr).getObserversAddrList();
         uint observersCount = observersList.length;
         uint votersCountLimit = votersCount;
